@@ -48,7 +48,7 @@ public:
     }
 private:
     log4cplus::Logger logger;
-    log4cplus::Initializer initalizer;
+    log4cplus::Initializer initializer;
 };
 
 extern Logger logger;
