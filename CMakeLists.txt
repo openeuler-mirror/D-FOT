@@ -3,14 +3,21 @@ project(D-FOT)
 
 set(CMAKE_CXX_STANDARD 11)
 
-option(WITH_DEBUG "debug mode" OFF)
-
-if (WITH_DEBUG)
-    message("-- Note: debug mode")
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    message("-- Build type: Debug")
     add_compile_options(-g3 -O0)
+elseif(CMAKE_BUILD_TYPE STREQUAL "Release")
+    message("-- Build type: Release")
+    add_compile_options(-O3)
+elseif(CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
+    message("-- Build type: RelWithDebInfo")
+    add_compile_options(-g -O2)
+else()
+    message("-- Build type: Unknown, defaulting to Release")
+    add_compile_options(-O3)
 endif()
 
-add_compile_options(-O2 -fPIC -Wall -Wextra)
+add_compile_options(-fPIC -Wall -Wextra)
 
 # libkperf
 message("-- libkperf library path: ${LIB_KPERF_LIBPATH}")
@@ -31,6 +38,10 @@ add_library(dfot SHARED ${dfot_tuner_sysboost_src})
 include_directories(dfot PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${LIB_KPERF_INCPATH}
+)
+
+target_link_directories(dfot PUBLIC
+    ${LIB_KPERF_LIBPATH}
 )
 
 target_link_libraries(dfot kperf sym dl log4cplus boost_system boost_filesystem)
