@@ -9,9 +9,8 @@
 
 #include "boost/filesystem.hpp"
 
-// libkperf
-#include "pmu.h"
-#include "symbol.h"
+#include "libkperf/pmu.h"
+#include "libkperf/symbol.h"
 
 // D-FOT
 #include "interface.h"
