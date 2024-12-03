@@ -1,163 +1,163 @@
 #include <cstring>
+#include <securec.h>
+
+#include <oeaware/interface/interface.h>
+#include <oeaware/pmu_sampling_data.h>
 
 #include "logs.h"
 #include "utils.h"
 #include "configs.h"
 #include "records.h"
-#include "interface.h"
 
 #include "opt.h"
+#include "tuner.h"
 
-// 当前优化插件需要的采样数据来源于oeaware-collector采样实例PMU_CYCLES_SAMPLING
-// 本插件不显式依赖该PMU_CYCLES_SAMPLING（因为可以预置profile来优化）
-// 注意如果oeaware-collector仓库对应采样实例名字有变化时，此处也要同步修改
-#define PMU_CYCLES_SAMPLING "pmu_cycles_sampling"
+// 当前优化插件需要的采样数据来源于oeaware-manager采样实例pmu_sampling_collector
+// 本插件通过订阅获取pmu_sampling_collector的采样数据，也可以预置profile来优化
+// 注意如果oeaware-manager仓库对应采样实例名字有变化时，此处也要同步修改
+#define DEP_INSTANCE_NAME "pmu_sampling_collector"
+// 订阅性能事件
+#define DEP_TOPIC_NAME "cycles"
 // sysboost优化插件实例名
 #define TUNER_INSTANCE_NAME "dfot_tuner_sysboost"
 
-// 从collector获取ringbuf
-void get_collector_ringbuf(
-    const struct Param *param, const struct DataRingBuf **ringbuf, uint64_t *cnt)
+SysboostTuner::SysboostTuner()
 {
-    const struct DataRingBuf *buf = nullptr;
-    static int last_record_index = -1;     // 记录上一次处理的ring_bufs下标
-    static uint64_t last_record_count = 0; // 记录上一次处理时采集插件的运行次数
+    // 基类参数
+    name = TUNER_INSTANCE_NAME;
+    version = "1.0.0";
+    description = "dfot tuner: sysboost";
+    priority = 2;
+    type = oeaware::TUNE;
+    period = 1000;
 
-    *ringbuf = nullptr;
-    *cnt = 0;
+    depTopic.instanceName = DEP_INSTANCE_NAME;
+    depTopic.topicName = DEP_TOPIC_NAME;
 
-    // 如果插件无变化，可以快速找到对应param
-    if (last_record_index >= 0 && last_record_index < param->len &&
-        param->ring_bufs[last_record_index] != nullptr &&
-        strcmp(param->ring_bufs[last_record_index]->instance_name, PMU_CYCLES_SAMPLING) == 0) {
-        buf = param->ring_bufs[last_record_index];
-    } else {
-        for (int i = 0; i < param->len; i++) {
-            if (param->ring_bufs[i] == nullptr) {
-                continue;
-            }
-            if (strcmp(param->ring_bufs[i]->instance_name, PMU_CYCLES_SAMPLING) == 0) {
-                buf = param->ring_bufs[i];
-                last_record_index = i;
-                break;
-            }
-        }
-    }
+    processingArea = nullptr;
+    processingAreaSize = 0;
+}
 
-    if (buf == nullptr) {
-        last_record_index = -1;
-        last_record_count = 0;
-        return;
-    }
-
-    if (buf->count > last_record_count) {
-        // 数据有更新，注意DataBuf已经全部刷新的场景
-        *ringbuf = buf;
-        *cnt = std::min(buf->count - last_record_count, (uint64_t)buf->buf_len);
-        last_record_count = buf->count;
-    } else if (buf->count < last_record_count) {
-        // 异常场景
-        WARN("[run] record data count: " << last_record_count
-            << " is large than " << "current count: " << buf->count);
-        *ringbuf = nullptr;
-        last_record_count = 0;
+SysboostTuner::~SysboostTuner()
+{
+    if (processingArea != nullptr) {
+        free(processingArea);
+        processingArea = nullptr;
+        processingAreaSize = 0;
     }
 }
 
-void get_sampling_data_from_collector(const struct Param *param)
+/// @brief 调优插件不需要打开topic
+/// @param topic 
+/// @return 
+oeaware::Result SysboostTuner::OpenTopic(const oeaware::Topic &topic)
 {
-    const struct DataRingBuf *ringbuf = nullptr;
-    uint64_t cnt = 0; // 需要处理的DataBuf的个数，小于buf_len
+    (void)topic;
+    return oeaware::Result(OK);
+}
 
-    int64_t start_ts = get_current_timestamp();
+/// @brief 调优插件不需要关闭topic
+/// @param topic 
+void SysboostTuner::CloseTopic(const oeaware::Topic &topic)
+{
+    (void)topic;
+}
 
-    get_collector_ringbuf(param, &ringbuf, &cnt);
-    if (ringbuf == nullptr || cnt == 0) {
+/// @brief 处理依赖采集插件实例的新采样数据
+/// @param dataList 采样数据
+void SysboostTuner::UpdateData(const DataList &dataList)
+{
+    if (configs == nullptr) {
+        FATAL("[update] no valid configs found");
         return;
     }
 
-    // 从ringbuf->index开始，倒序处理cnt个DataBuf，同时校验PmuData的ts；
+    static bool processing = false;
+    if (processing) {
+        DEBUG("[update] last processing is not finished, skip");
+        return;
+    }
+    processing = true;
+    
+    int64_t start_ts = get_current_timestamp();
     uint64_t total_samples = 0;
-    for (int i = 0; i < (int)cnt; i++) {
-        int index = (ringbuf->buf_len + ringbuf->index - i) % ringbuf->buf_len;
-        process_pmudata((struct PmuData *)(ringbuf->buf[index].data), ringbuf->buf[index].len);
-        total_samples += (uint64_t)ringbuf->buf[index].len;
+    for (unsigned long long i = 0; i < dataList.len; i++) {
+        PmuSamplingData *data = (PmuSamplingData *)(dataList.data[i]);
+
+        // 复制一份采样数据到插件公共内存中，防止数据被覆盖，
+        // 如果内存不足，则重新申请内存
+        if (processingArea == nullptr ||
+            processingAreaSize < sizeof(PmuData) * data->len) {
+            if (processingArea != nullptr) {
+                free(processingArea);
+            }
+            processingArea = malloc(sizeof(PmuData) * data->len);
+            if (processingArea == nullptr) {
+                processingAreaSize = 0;
+                continue;
+            }
+            processingAreaSize = sizeof(PmuData) * data->len;
+        }
+        auto ret = memcpy_s(
+            processingArea, processingAreaSize, data->pmuData, sizeof(PmuData) * data->len);
+        if (ret != EOK) {
+            continue;
+        }
+        process_pmudata((PmuData *)processingArea, data->len);
+        total_samples += data->len;
     }
     records.processed_samples += total_samples;
 
     int64_t end_ts = get_current_timestamp();
-    DEBUG("[run] processing pmudata cost: " << (end_ts - start_ts) << " ms, "
+    DEBUG("[update] processing pmudata cost: " << (end_ts - start_ts) << " ms, "
         << "current: " << total_samples << " samples, "
         << "total: " << records.processed_samples << " samples");
+    processing = false;
 }
 
-const char *sysboost_get_version()
+/// @brief 使能调优插件实例
+/// @param param 预留参数
+/// @return 
+oeaware::Result SysboostTuner::Enable(const std::string &param)
 {
-    return "v1.0";
-}
-
-const char *sysboost_get_name()
-{
-    return TUNER_INSTANCE_NAME;
-}
-
-const char *sysboost_get_description()
-{
-    return "dfot tuner: sysboost";
-}
-
-const char *sysboost_get_dep()
-{
-    // 本插件启动时，不依赖采样插件，兼容使用预置profile的场景
-    // 本插件启动后，增加对PMU_CYCLES_SAMPLING的依赖，方便获取ringbuf数据
-    // configs非空即表示插件已启动
-    return configs != nullptr ? PMU_CYCLES_SAMPLING : nullptr;
-}
-
-int sysboost_get_priority()
-{
-    return 0;
-}
-
-int sysboost_get_type()
-{
-    return -1;
-}
-
-// 每隔多少ms执行一次run
-int sysboost_get_period()
-{
-    return configs != nullptr ? configs->tuner_check_period : 1000;
-}
-
-bool sysboost_enable()
-{
-    logger.init();
+    (void)param;
+    
+    dfot_logger.init();
 
     if (configs == nullptr &&
         parse_dfot_ini(DEFAULT_DFOT_CONFIG_PATH) != DFOT_OK) {
         ERROR("[enable] instance [" << TUNER_INSTANCE_NAME << "] init configs failed");
-        return false;
+        return oeaware::Result(FAILED);
     }
 
     if (!check_configs_valid()) {
         ERROR("[enable] invalid configs");
-        return false;
+        return oeaware::Result(FAILED);
     }
 
     if (!check_dependence_ready()) {
         ERROR("[enable] dependencies are not ready");
-        return false;
+        return oeaware::Result(FAILED);
     }
 
     reset_records();
 
+    if (Subscribe(depTopic).code != OK) {
+        ERROR("[enable] subscribe dep topic error");
+        return oeaware::Result(FAILED);
+    }
+
     INFO("[enable] plugin instance [" << TUNER_INSTANCE_NAME << "] enabled");
-	return true;
+	return oeaware::Result(OK);
 }
 
-void sysboost_disable()
+/// @brief 禁用调优插件实例
+void SysboostTuner::Disable()
 {
+    if (Unsubscribe(depTopic).code != OK) {
+        ERROR("[disable] unsubscribe dep topic error");
+    }
+
     for (auto it = configs->apps.begin(); it != configs->apps.end(); ++it) {
         AppConfig *app = *it;
         if (app->status != OPTIMIZED) {
@@ -167,20 +167,14 @@ void sysboost_disable()
     }
 
     cleanup_configs();
-    INFO("[disable] plugin " << TUNER_INSTANCE_NAME << " disabled");
+    INFO("[disable] instance [" << TUNER_INSTANCE_NAME << "] disabled");
 }
 
-const struct DataRingBuf *sysboost_get_ring_buf()
+/// @brief 调优插件主逻辑
+void SysboostTuner::Run()
 {
-    // 调优插件不需要向其他插件提供数据
-    return nullptr;
-}
-
-void sysboost_run(const struct Param *param)
-{
-    // 1. 刷新采样数据
-    // 2. 检查优化条件
-    // 3. 获取profile，实施优化
+    // 1. 检查优化条件
+    // 2. 获取profile，实施优化
     static bool optimizing = false;
 
     if (configs == nullptr) {
@@ -195,9 +189,6 @@ void sysboost_run(const struct Param *param)
     }
 
     optimizing = true;
-
-    // step1: 刷新采样数据
-    get_sampling_data_from_collector(param);
 
     for (auto it = configs->apps.begin(); it != configs->apps.end(); ++it) {
         AppConfig *app = *it;
@@ -217,17 +208,3 @@ void sysboost_run(const struct Param *param)
 
     optimizing = false;
 }
-
-struct Interface sysboost_tuner = {
-    .get_version     = sysboost_get_version,
-    .get_name        = sysboost_get_name,
-    .get_description = sysboost_get_description,
-    .get_dep         = sysboost_get_dep,
-    .get_priority    = sysboost_get_priority,
-    .get_type        = sysboost_get_type,
-    .get_period      = sysboost_get_period,
-    .enable          = sysboost_enable,
-    .disable         = sysboost_disable,
-    .get_ring_buf    = sysboost_get_ring_buf,
-    .run             = sysboost_run,
-};

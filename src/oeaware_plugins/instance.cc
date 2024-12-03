@@ -1,12 +1,11 @@
-#include "logs.h"
+#include <oeaware/interface/interface.h>
 
-#include "interface.h"
+#include "logs.h"
 #include "tuner.h"
 
-Logger __attribute__((visibility("hidden"))) logger("D-FOT");
+Logger __attribute__((visibility("hidden"))) dfot_logger("D-FOT");
 
-extern "C" int get_instance(struct Interface **interface)
+extern "C" void GetInstance(std::vector<std::shared_ptr<oeaware::Interface>> &interface)
 {
-    *interface = &sysboost_tuner;
-    return 1;
+    interface.emplace_back(std::make_shared<SysboostTuner>());
 }

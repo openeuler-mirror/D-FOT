@@ -7,13 +7,11 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-#include "boost/filesystem.hpp"
+#include <boost/filesystem.hpp>
 
-#include "libkperf/pmu.h"
-#include "libkperf/symbol.h"
+#include <libkperf/pmu.h>
+#include <libkperf/symbol.h>
 
-// D-FOT
-#include "interface.h"
 #include "utils.h"
 #include "configs.h"
 #include "records.h"
@@ -159,7 +157,7 @@ int dump_app_addrs_to_file(AppConfig *app)
         return DFOT_ERROR;
     }
 
-    // 当前仅处理PMU_CYCLES_SAMPLING数据，性能事件固定为cycles
+    // 当前仅处理pmu_sampling_collector数据，性能事件固定为cycles
     fprintf(fp, "cycles\n");
     for (auto it = app->profile.addrs.begin(); it != app->profile.addrs.end(); ++it) {
         fprintf(fp, "%lx %d\n", it->first, it->second.count);
@@ -265,7 +263,7 @@ void dump_app_profile_to_file(AppConfig *app)
             ERROR("[run] fopen " << app->collected_profile << " error");
             return;
         }
-        // 当前仅处理PMU_CYCLES_SAMPLING数据，性能事件固定为cycles
+        // 当前仅处理pmu_sampling_collector数据，性能事件固定为cycles
         fprintf(fp, "no_lbr cycles:\n");
         for (auto it1 = app->profile.funcs.begin(); it1 != app->profile.funcs.end(); ++it1) {
             for (auto it2 = it1->second.begin(); it2 != it1->second.end(); ++it2) {
@@ -411,7 +409,7 @@ void process_pmudata(struct PmuData *data, int len)
     }
 
     for (AppConfig* app : updated_apps) {
-        DEBUG("[run] collected addrs for [" << app->app_name
+        DEBUG("[update] collected addrs for [" << app->app_name
             << ": " << app->instances.size() - 1 << "]: "
             << app->profile.addrs.size());
 
