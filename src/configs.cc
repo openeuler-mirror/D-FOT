@@ -81,7 +81,7 @@ int parse_general(boost::property_tree::ptree pt)
         } else {
             configs->log_level = it->second;
         }
-        logger.setLogLevel(configs->log_level);
+        dfot_logger.setLogLevel(configs->log_level);
         configs->sampling_strategy             = pt.get<int>("general.COLLECTOR_SAMPLING_STRATEGY");
         configs->high_load_threshold           = pt.get<int>("general.COLLECTOR_HIGH_LOAD_THRESHOLD");
         configs->collector_sampling_period     = pt.get<int>("general.COLLECTOR_SAMPLING_PERIOD");

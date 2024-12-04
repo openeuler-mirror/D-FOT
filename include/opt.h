@@ -14,7 +14,7 @@
 
 #include <string>
 
-#include "pmu.h"
+#include <libkperf/pmu.h>
 #include "configs.h"
 
 extern bool check_dependence_ready();

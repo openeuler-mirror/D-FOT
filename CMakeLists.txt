@@ -1,8 +1,6 @@
 cmake_minimum_required(VERSION 3.15)
 project(D-FOT)
 
-set(CMAKE_CXX_STANDARD 11)
-
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     message("-- Build type: Debug")
     add_compile_options(-g3 -O0)
@@ -17,11 +15,7 @@ else()
     add_compile_options(-O3)
 endif()
 
-add_compile_options(-fPIC -Wall -Wextra)
-
-# libkperf
-message("-- libkperf library path: ${LIB_KPERF_LIBPATH}")
-message("-- libkperf include path: ${LIB_KPERF_INCPATH}")
+add_compile_options(-std=c++17 -fPIC -Wall -Wextra)
 
 set(dfot_tuner_sysboost_src
     src/oeaware_plugins/instance.cc
@@ -35,13 +29,13 @@ set(dfot_tuner_sysboost_src
 
 add_library(dfot SHARED ${dfot_tuner_sysboost_src})
 
+
 include_directories(dfot PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${LIB_KPERF_INCPATH}
+    # 因为oeAware头文件问题，此处临时适配
+    /usr/include/libkperf
+    /usr/include/oeaware
+    /usr/include/oeaware/interface
 )
 
-target_link_directories(dfot PUBLIC
-    ${LIB_KPERF_LIBPATH}
-)
-
-target_link_libraries(dfot kperf sym dl log4cplus boost_system boost_filesystem)
+target_link_libraries(dfot boundscheck kperf sym dl log4cplus boost_system boost_filesystem)

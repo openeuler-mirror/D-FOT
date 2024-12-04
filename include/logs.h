@@ -22,11 +22,11 @@
 
 #define DFOT_LOG_PATH "/etc/dfot/dfot.log"
 
-#define DEBUG(fmt) LOG4CPLUS_DEBUG(logger.get(), fmt)
-#define INFO(fmt)  LOG4CPLUS_INFO(logger.get(), fmt)
-#define WARN(fmt)  LOG4CPLUS_WARN(logger.get(), fmt)
-#define ERROR(fmt) LOG4CPLUS_ERROR(logger.get(), fmt)
-#define FATAL(fmt) LOG4CPLUS_FATAL(logger.get(), fmt)
+#define DEBUG(fmt) LOG4CPLUS_DEBUG(dfot_logger.get(), fmt)
+#define INFO(fmt)  LOG4CPLUS_INFO(dfot_logger.get(), fmt)
+#define WARN(fmt)  LOG4CPLUS_WARN(dfot_logger.get(), fmt)
+#define ERROR(fmt) LOG4CPLUS_ERROR(dfot_logger.get(), fmt)
+#define FATAL(fmt) LOG4CPLUS_FATAL(dfot_logger.get(), fmt)
 
 static std::map<std::string, log4cplus::LogLevel> LOG_LEVEL = {
     {"DEBUG", log4cplus::DEBUG_LOG_LEVEL},
@@ -51,6 +51,6 @@ private:
     log4cplus::Initializer initializer;
 };
 
-extern Logger logger;
+extern Logger dfot_logger;
 
 #endif

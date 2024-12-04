@@ -12,8 +12,25 @@
 #ifndef __TUNER_H__
 #define __TUNER_H__
 
-#include "interface.h"
+#include <oeaware/data_list.h>
+#include <oeaware/interface/topic.h>
+#include <oeaware/interface/interface.h>
 
-extern struct Interface sysboost_tuner;
+class SysboostTuner : public oeaware::Interface {
+public:
+    SysboostTuner();
+    ~SysboostTuner();
+    oeaware::Result OpenTopic(const oeaware::Topic &topic) override;
+    void CloseTopic(const oeaware::Topic &topic) override;
+    void UpdateData(const DataList &dataList) override;
+    oeaware::Result Enable(const std::string &param) override;
+    void Disable() override;
+    void Run() override;
+
+private:
+    oeaware::Topic depTopic;
+    void *processingArea;
+    size_t processingAreaSize;
+};
 
 #endif
