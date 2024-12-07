@@ -13,8 +13,8 @@
 #define __TUNER_H__
 
 #include <oeaware/data_list.h>
-#include <oeaware/interface/topic.h>
-#include <oeaware/interface/interface.h>
+#include <oeaware/topic.h>
+#include <oeaware/interface.h>
 
 class SysboostTuner : public oeaware::Interface {
 public:
