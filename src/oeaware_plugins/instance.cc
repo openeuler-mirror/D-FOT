@@ -1,4 +1,4 @@
-#include <oeaware/interface/interface.h>
+#include <oeaware/interface.h>
 
 #include "logs.h"
 #include "tuner.h"

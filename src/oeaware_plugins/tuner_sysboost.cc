@@ -1,8 +1,9 @@
 #include <cstring>
 #include <securec.h>
 
-#include <oeaware/interface/interface.h>
-#include <oeaware/pmu_sampling_data.h>
+#include <oeaware/interface.h>
+#include <oeaware/data_list.h>
+#include <oeaware/data/pmu_sampling_data.h>
 
 #include "logs.h"
 #include "utils.h"
@@ -15,7 +16,7 @@
 // 当前优化插件需要的采样数据来源于oeaware-manager采样实例pmu_sampling_collector
 // 本插件通过订阅获取pmu_sampling_collector的采样数据，也可以预置profile来优化
 // 注意如果oeaware-manager仓库对应采样实例名字有变化时，此处也要同步修改
-#define DEP_INSTANCE_NAME "pmu_sampling_collector"
+#define DEP_INSTANCE_NAME OE_PMU_SAMPLING_COLLECTOR
 // 订阅性能事件
 #define DEP_TOPIC_NAME "cycles"
 // sysboost优化插件实例名
