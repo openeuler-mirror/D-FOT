@@ -164,7 +164,10 @@ void SysboostTuner::Disable()
         if (app->status != OPTIMIZED) {
             continue;
         }
-        exec_cmd("sysboostd --stop=" + app->full_path);
+        auto result = exec_cmd("sysboostd --stop=" + app->full_path);
+        if (result.ret != 0) {
+            ERROR("[disable] cleanup last optimization for [" << app->app_name << "] failed!");
+        }
     }
 
     cleanup_configs();
