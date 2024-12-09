@@ -404,6 +404,11 @@ void process_pmudata(struct PmuData *data, int len)
             continue;
         }
 
+        // 过滤内核地址
+        if (data[i].stack->symbol->addr >= 0xffff000000000000) {
+            continue;
+        }
+
         update_app_profile_data(app, data[i]);
         updated_apps.insert(app);
     }
