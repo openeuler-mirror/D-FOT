@@ -92,9 +92,9 @@ void update_app_profile_data(AppConfig *app, struct PmuData &data)
     // {函数名func: {内存地址addr: 计数count, ...}, ...}
     auto &funcs = app->profile.funcs;
 
-    // symbol->addr symbol->offset
+    // symbol->codeMapAddr symbol->offset
     // 如果是BOLT优化过后的二进制的采样数据则只需记录地址和计数
-    unsigned long addr = data.stack->symbol->addr;
+    unsigned long addr = data.stack->symbol->codeMapAddr;
 
     if (records.pids[data.pid]->instance->version > 0) {
         if (addrs.find(addr) != addrs.end()) {
