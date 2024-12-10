@@ -164,7 +164,10 @@ void SysboostTuner::Disable()
         if (app->status != OPTIMIZED) {
             continue;
         }
-        exec_cmd("sysboostd --stop=" + app->full_path);
+        auto result = exec_cmd("sysboostd --stop=" + app->full_path);
+        if (result.ret != 0) {
+            ERROR("[disable] cleanup last optimization for [" << app->app_name << "] failed!");
+        }
     }
 
     cleanup_configs();
@@ -202,6 +205,8 @@ void SysboostTuner::Run()
         std::lock_guard<std::mutex> lock(app->profile_mtx);
         std::string profile = get_app_profile(app);
         if (profile == "") {
+            // 无法匹配profile文件时，需要回退app的NEED_OPTIMIZED状态，避免重复判断和日志打印
+            app->status = (app->instances.size() > 1) ? OPTIMIZED : UNOPTIMIZED;
             continue;
         }
         do_optimize(app, profile);

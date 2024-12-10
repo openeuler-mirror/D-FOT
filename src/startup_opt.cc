@@ -92,9 +92,9 @@ void update_app_profile_data(AppConfig *app, struct PmuData &data)
     // {函数名func: {内存地址addr: 计数count, ...}, ...}
     auto &funcs = app->profile.funcs;
 
-    // symbol->addr symbol->offset
+    // symbol->codeMapAddr symbol->offset
     // 如果是BOLT优化过后的二进制的采样数据则只需记录地址和计数
-    unsigned long addr = data.stack->symbol->addr;
+    unsigned long addr = data.stack->symbol->codeMapAddr;
 
     if (records.pids[data.pid]->instance->version > 0) {
         if (addrs.find(addr) != addrs.end()) {
@@ -404,6 +404,11 @@ void process_pmudata(struct PmuData *data, int len)
             continue;
         }
 
+        // 过滤内核地址
+        if (data[i].stack->symbol->addr >= 0xffff000000000000) {
+            continue;
+        }
+
         update_app_profile_data(app, data[i]);
         updated_apps.insert(app);
     }
@@ -435,7 +440,11 @@ void do_optimize(AppConfig *app, std::string profile)
         "with profile [" << profile << "]");
 
     // 构造并执行sysboost优化回退命令（无论是否优化过）
-    exec_cmd("sysboostd --stop=" + app->full_path);
+    auto result = exec_cmd("sysboostd --stop=" + app->full_path);
+    if (result.ret != 0) {
+        ERROR("[run] cleanup last optimization for [" << app->app_name << "] failed!");
+        return;
+    }
 
     // 构造并执行sysboost优化使能命令
     std::string bolt_options =
@@ -453,10 +462,14 @@ void do_optimize(AppConfig *app, std::string profile)
         " --profile-path=" + profile;
 
     uint64_t start_ts = get_current_timestamp();
-    exec_cmd(opt_cmd);
+    result = exec_cmd(opt_cmd);
     uint64_t end_ts = get_current_timestamp();
-    DEBUG("[run] optimizing finished, cost: " << (end_ts - start_ts)/1000 << " s");
-    app->status = OPTIMIZED;
+    if (result.ret != 0) {
+        ERROR("[run] optimizing failed, please check the sysboost log");
+    } else {
+        DEBUG("[run] optimizing finished, cost: " << (end_ts - start_ts)/1000 << " s");
+        app->status = OPTIMIZED;
+    }
 
     // 优化后需要清除当前profile数据，避免拉起优化二进制前后的数据混合
     clear_app_profile_data(app);
