@@ -23,6 +23,7 @@ typedef struct {
 typedef struct {
     uint64_t processed_samples;
     std::map<pid_t, Pidinfo*> pids;
+    std::map<const char*, bool> modules;
 } global_records;
 
 extern global_records records;

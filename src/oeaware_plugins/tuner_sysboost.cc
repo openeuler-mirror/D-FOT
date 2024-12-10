@@ -81,6 +81,7 @@ void SysboostTuner::UpdateData(const DataList &dataList)
     processing = true;
     
     int64_t start_ts = get_current_timestamp();
+    records.modules.clear();
     uint64_t total_samples = 0;
     for (unsigned long long i = 0; i < dataList.len; i++) {
         PmuSamplingData *data = (PmuSamplingData *)(dataList.data[i]);
