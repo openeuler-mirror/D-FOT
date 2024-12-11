@@ -92,9 +92,25 @@ void update_app_profile_data(AppConfig *app, struct PmuData &data)
     // {函数名func: {内存地址addr: 计数count, ...}, ...}
     auto &funcs = app->profile.funcs;
 
+    // 刷新modules记录，避免直接匹配modules字符串，此处的module是relapath路径
+    auto symbol = data.stack->symbol;
+    if (records.modules.find(symbol->module) == records.modules.end()) {
+        records.modules[symbol->module] = false;
+        if (strcmp(symbol->module, app->full_path.c_str()) == 0) {
+            records.modules[symbol->module] = true;
+        } else if (strstr(symbol->module, ".rto") != nullptr &&
+            strncmp(symbol->module, app->full_path.c_str(), strlen(app->full_path.c_str())) == 0) {
+            records.modules[symbol->module] = true;
+        }
+    }
+
+    if (!records.modules[symbol->module]) {
+        return;
+    }
+
     // symbol->codeMapAddr symbol->offset
     // 如果是BOLT优化过后的二进制的采样数据则只需记录地址和计数
-    unsigned long addr = data.stack->symbol->codeMapAddr;
+    unsigned long addr = symbol->codeMapAddr;
 
     if (records.pids[data.pid]->instance->version > 0) {
         if (addrs.find(addr) != addrs.end()) {
@@ -108,18 +124,18 @@ void update_app_profile_data(AppConfig *app, struct PmuData &data)
     // 原始二进制的采样数据，读取地址+符号+偏移
     if (addrs.find(addr) != addrs.end()) {
         addrs[addr].count++;
-        funcs[addrs[addr].name][data.stack->symbol->offset]++;
+        funcs[addrs[addr].name][symbol->offset]++;
     } else {
         addrs[addr] = AddrInfo();
-        if (data.stack->symbol->mangleName != nullptr) {
-            addrs[addr].name = data.stack->symbol->mangleName;
+        if (symbol->mangleName != nullptr) {
+            addrs[addr].name = symbol->mangleName;
         } else {
             auto sym = SymResolverMapAddr(data.pid, addr);
             addrs[addr].name = sym->mangleName;
         }
-        addrs[addr].offset = data.stack->symbol->offset;
+        addrs[addr].offset = symbol->offset;
         addrs[addr].count = 1;
-        funcs[addrs[addr].name][data.stack->symbol->offset] = 1;
+        funcs[addrs[addr].name][symbol->offset] = 1;
     }
 }
 

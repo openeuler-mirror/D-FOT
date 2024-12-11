@@ -128,12 +128,14 @@ std::string get_app_collected_profile_path(AppConfig *app)
 int parse_app(boost::property_tree::ptree pt, std::string app_name)
 {
     std::string full_path;
+    char rlpath[1024] = {0};
     try {
         full_path = pt.get<std::string>(app_name + ".FULL_PATH");
-        if (!boost::filesystem::exists(full_path)) {
+        if (!get_real_path(full_path.c_str(), rlpath)) {
             ERROR("Error: File does not exist: " << full_path);
             return DFOT_ERROR;
         }
+        full_path = std::string(rlpath);
     } catch (const boost::property_tree::ptree_bad_path &e) {
         ERROR("FULL_PATH is needed.");
         return DFOT_ERROR;

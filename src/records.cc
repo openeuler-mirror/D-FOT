@@ -8,6 +8,7 @@ void reset_records()
 {
     records.processed_samples = 0;
     records.pids.clear();
+    records.modules.clear();
 }
 
 void debug_print_records()
